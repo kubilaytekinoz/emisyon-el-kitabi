@@ -1,135 +1,113 @@
-# LABCORE - Kendi Linux Sunucumuzda Kurulum
+# LABCORE — Köprü Linux sunucusunda SQLite kurulumu
 
-Bu dokuman mevcut Kopru uygulamasina dokunmadan LABCORE'u ayni makinede **ayri bir servis** olarak calistirmak icindir.
+Mevcut Köprü (/opt/kopru) Flask uygulamasına, TECORA/PM10 işlerine ve Python sanal ortamına **dokunulmaz**. LABCORE kendi Node.js systemd servisi ve yerel SQLite veritabanıyla çalışır.
 
-## Bildigimiz mevcut durum
+## Mimari
 
-- Mevcut Kopru dizini: /opt/kopru (Flask + TECORA/PM10 akislarini barindirir)
-- Islem kullanicisi: kopru
-- Yeni LABCORE dizini: /opt/emisyon-el-kitabi
-- Yeni Node servisi: labcore.service
-- Yeni dinleme adresi: 127.0.0.1:4100
-- Yeni LABCORE veri deposu: ayri PostgreSQL veritabani
+- Linux servis hesabı: kopru (sunucuda mevcut olduğundan emin olun).
+- Kaynak kodu: /opt/emisyon-el-kitabi (GitHub repo).
+- Veri: /var/lib/labcore/labcore.sqlite (yalnızca kopru kullanıcısı erişir).
+- Servis: labcore.service (HTTP: 127.0.0.1:4100).
+- Yayın: Nginx/reverse proxy + HTTPS, tercihen ayrı host adı.
+- Yedekler: /var/backups/labcore (uygulama klasöründen ve GitHub'dan ayrı).
+- PostgreSQL, ek veritabanı servisi veya DB kullanıcı hesabı **gerekmiyor**.
 
-**Kopru klasorunu, servis ayarlarini, Python sanal ortamını veya TECORA verilerini degistirmeyin.**
+## 1. Mevcut sunucuyu kontrol et
 
-## 0. Sunucuda once kontrol
-
-Kopru kullanicisi hesabina girdikten sonra:
+Önce herhangi bir servisi değiştirmeden şu çıktıların üzerinden geçin:
 
     whoami
     cat /etc/os-release
     command -v node && node -v
     command -v npm && npm -v
     command -v git && git --version
-    command -v psql && psql --version
     command -v nginx && nginx -v
     command -v systemctl
+    id kopru
     ss -lntp
 
-Bu komutlar envanter icindir. Kurulu olmayan bilesenleri isletim sisteminin paket yoneticisine gore kurun. Node.js 20+ gereklidir. Nginx mevcut degilse veya baska reverse proxy kullaniliyorsa ornek config'i kullanmadan once mevcut yapıya uyarlayin.
+Node.js 20 veya üzeri gereklidir. better-sqlite3 yerel/native bağımlılıktır; Linux Node sürümü desteklenmeli, gerekirse derleme araçları kurulu olmalıdır. Mevcut Linux dağıtımına göre paketleri seçin.
 
-## 1. Uygulama dizini
-
-Dizini root yetkisiyle ayri olusturun ve sadece kopru hesabina verin:
+## 2. Ayrı uygulama dizini ve kaynak kod
 
     sudo install -d -o kopru -g kopru -m 750 /opt/emisyon-el-kitabi
     sudo -u kopru git clone https://github.com/kubilaytekinoz/emisyon-el-kitabi.git /opt/emisyon-el-kitabi
-    cd /opt/emisyon-el-kitabi
-    npm install --no-audit --no-fund
-    npm run build
+    sudo -u kopru sh -c 'cd /opt/emisyon-el-kitabi && npm install --no-audit --no-fund && npm run build'
 
-Bu asamada gelistirme ortami ve veritabani kurulumu gerekmez; sadece React arayuzu derlenir.
+Mevcut /opt/kopru dizinine hiçbir dosya eklenmez.
 
-## 2. PostgreSQL veritabani
+## 3. SQLite dosya ve dizin izinleri
 
-Zaten kurulu ve uyumlu PostgreSQL varsa yeni ornek kurmaya gerek yok. **Kopru'nun var olan veri tabanlarini kullanmayin.**
+Systemd'deki StateDirectory=labcore ayarı /var/lib/labcore dizinini servis hesabı adına 0700 izinleriyle oluşturur. **İlk başlangıç öncesi ayrıca oluşturmak isterseniz:**
 
-Isterseniz mevcut PostgreSQL superuser'i ile asagidaki gibi LABCORE'a ozel rol ve DB olusturabilirsiniz:
+    sudo install -d -o kopru -g kopru -m 700 /var/lib/labcore
 
-    sudo -u postgres psql -c "CREATE ROLE labcore_app LOGIN;"
-    sudo -u postgres psql -c "CREATE DATABASE labcore OWNER labcore_app;"
-    sudo -u postgres psql
+SQLite veritabanı ilk uygulama başlangıcında otomatik oluşturulur, tablolara 15 adet yöntem taslağı yüklenir. DB dosyası izni 0600 ayarlanır. WAL nedeniyle aynı dizinde -wal ve -shm dosyaları oluşması normaldir. Bunları servis açıkken silmeyin.
 
-psql icindeyken:
+## 4. İlk yönetici ve gizli ayarlar
 
-    \password labcore_app
-    \q
-
-DATABASE_URL degerindeki parolanin URL icin ozel karakterleri varsa yuzde kodlamasi yapilmalidir. Izinleri sadece LABCORE veritabanina sinirlayin.
-
-## 3. Sunucu sirlarini tanimlama
-
-Ortam degiskenleri **GitHub'a konulmaz**. Root erisimli bir dosyada tutulur:
-
-    sudo install -d -m 700 -o root -g root /etc/labcore
+    sudo install -d -o root -g root -m 700 /etc/labcore
     sudo install -m 600 -o root -g root /dev/null /etc/labcore/labcore.env
     sudoedit /etc/labcore/labcore.env
 
-Dosya icerigi sablonu:
+Dosya örneği (gerçek şifreyi kendi sunucunuzdaki dosyada oluşturun):
 
-    DATABASE_URL=postgresql://labcore_app:PAROLAYI_GIRIN@127.0.0.1:5432/labcore
     ADMIN_USERNAME=admin
-    ADMIN_PASSWORD=EN_AZ_10_KARAKTERLIK_GUCLU_BIR_SIFRE
-    APP_ORIGIN=https://elkitabi.example.com
+    ADMIN_PASSWORD=UZUN_RASTGELE_GUCLU_ADMIN_SIFRESI
+    APP_ORIGIN=https://elkitabi.ornek-domain.com
 
-APP_ORIGIN degerini **kendi gercek HTTPS adresiniz** olarak ayarlayin. Admin ilk baslatmada olusur; ardindan ADMIN_PASSWORD degerini ortamdan kaldirabilirsiniz.
+NODE_ENV, PORT ve DATABASE_PATH değerleri systemd servis dosyasında zaten tanımlı. İlk admin oluşunca ADMIN_PASSWORD değerini ortam dosyasından kaldırabilirsiniz (uygulama yalnızca kullanıcı tablosu boşken bu değeri okur). **Şifreyi, .env dosyasını ve DB dosyasını GitHub'a koymayın.**
 
-## 4. systemd servisi
+## 5. LABCORE systemd servisi
 
-Servis ornegi: deploy/labcore.service.example
+Repodaki deploy/labcore.service.example dosyası kullanılabilir:
 
     sudo cp /opt/emisyon-el-kitabi/deploy/labcore.service.example /etc/systemd/system/labcore.service
     command -v node
 
-Node yolu /usr/bin/node degilse servis dosyasindaki ExecStart degerini guncelleyin.
+Node /usr/bin/node dışında bir yerdeyse /etc/systemd/system/labcore.service içindeki ExecStart yolunu değiştirin.
 
     sudo systemctl daemon-reload
     sudo systemctl enable --now labcore
     sudo systemctl status labcore --no-pager
-    sudo journalctl -u labcore -n 80 --no-pager
+    sudo journalctl -u labcore -n 70 --no-pager
     curl -fsS http://127.0.0.1:4100/api/health
 
-Servis **yalnizca localhost** dinler. Dış erişim icin mevcut reverse proxy uzerinden HTTPS yonlendirmesi yapilir.
+Beklenen örnek yanıt: {"ok":true,"db":"sqlite"}.
 
-## 5. Nginx / HTTPS
+## 6. Nginx / HTTPS
 
-Eger Kopru'nun onunde Nginx varsa, mevcut Kopru konfigürasyonuna dokunmadan **ayri bir server_name** kullanin.
+deploy/nginx-labcore.conf.example yalnızca örnek yönlendirmedir. Mevcut Köprü yayınına müdahale etmeyin; ayrı bir hostname önerilir. Örnek config'deki server_name ve alan adlarını gerçek değerlere uyarlayın.
 
-Ornek dosya: deploy/nginx-labcore.conf.example
-
-Buradaki elkitabi.example.com bir **ornek alan adidir**. Kendi DNS adinizi kullanin. Ornek konfigürasyon yalnızca HTTP kurulum asamasini gosterir. Erişime açmadan once sertifika ve HTTPS yonlendirmesini tamamlayin. Sonra:
+Üretimde **HTTPS zorunlu**: secure oturum çerezi ve doğru APP_ORIGIN için TLS sertifikasını yapılandırın. HTTP örneğini çıplak biçimde internete açık bırakmayın. Ardından:
 
     sudo nginx -t
     sudo systemctl reload nginx
 
-Eger mevcut Kopru alt yolunu kullanmak istiyorsak once proxy yapisini birlikte gozden gecirmeliyiz: React asset yolları ve /api adresleri ayrica duzenlenmelidir. Bu nedenle ilk asamada **ayri bir subdomain veya hostname** daha guvenlidir.
+Kullanıcılar siteye GitHub hesabıyla değil, yönetici tarafından verilen kullanıcı adı ve şifreyle girer.
 
-## 6. İlk giriş
+## 7. Güvenli çevrimiçi SQLite yedeği
 
-HTTPS site acildiktan sonra ilk admin kullanicisi ile girin. Panelden personel ekleyin, sifrelerini guvenli kanaldan iletin, sonra gerekli metotlari duzenleyin.
+WAL açıkken sadece .sqlite dosyasını cp ile kopyalamak güvenilir değildir. Repoda SQLite online backup API'sini kullanan scripts/backup.mjs bulunmaktadır.
 
-Islevler: kullanici adi + sifre; kayit olma ve otomatik sifre sifirlama yok.
+    sudo install -d -o kopru -g kopru -m 700 /var/backups/labcore
+    sudo -u kopru env NODE_ENV=production DATABASE_PATH=/var/lib/labcore/labcore.sqlite BACKUP_DIRECTORY=/var/backups/labcore /usr/bin/node /opt/emisyon-el-kitabi/scripts/backup.mjs
 
-Sadece bir yönetici hesabiniz olabilir; sistem son etkin adminin devre disi birakilmasini engeller. Admin yeni kullanici sifresi belirleyebilir.
+Node yolu farklıysa yukarıdaki /usr/bin/node değerini değiştirin. İşlem tarih damgalı dosya üretir ve PRAGMA integrity_check ile bütünlüğünü kontrol eder.
 
-## 7. Güncelleme
+Yedekler için ayrıca en az günlük zamanlayıcı, saklama süresi, sunucudan bağımsız yedekleme ve düzenli geri yükleme denemesi tanımlanmalıdır. **Yedekleri yalnızca aynı sunucuda bırakmak felakete karşı yeterli değildir.**
 
-Yeni surumde uygulama dizininde:
+## 8. Güncelleme
 
-    cd /opt/emisyon-el-kitabi
-    git pull --ff-only
-    npm install --no-audit --no-fund
-    npm run build
+    sudo -u kopru sh -c 'cd /opt/emisyon-el-kitabi && git pull --ff-only && npm install --no-audit --no-fund && npm run build'
     sudo systemctl restart labcore
     sudo systemctl status labcore --no-pager
 
-Canlı ortamda veritabanı yedegini guncelleme oncesi alin. Paket versiyonlarini sabitlemek icin lockfile hazirlandiktan sonra npm ci tercih edin.
+Güncelleme öncesinde SQLite yedeğini alın. Kodla birlikte Node.js sürüm gereksinimleri ve veritabanı değişiklikleri de kontrol edilmelidir.
 
-## Guvenlik ve kalite notlari
+## 9. Önemli sınırlar
 
-- Public repo, uygulama kaynak kodunu herkesin okuyabilmesi demektir; gerçek şifre veya firma/saha kaydi burada tutulmaz.
-- Admin paneli public olsa bile API izinlerini sunucu zorunlu tutar.
-- Saha bilgisi sisteme girilmeden once HTTPS ve veri tabani yedekleme hazir olmali.
-- Kod otomatik derleme kontrolunu gecse bile uctan uca sunucu/veritabani testi icin uygulama deploy edilmelidir.
-- V0.1 yöntem içerikleri **taslaktır**; teknik sorumlu SOP dogrulamasi olmadan resmi uygulama talimati degildir.
+- Bu uygulama yalnızca tek makinede tutulan SQLite veritabanı içindir; DB dosyasını NFS/SMB gibi ağ sürücülerine koymayın.
+- Çok yoğun eşzamanlı yazma yükünde PostgreSQL'e geçiş tekrar değerlendirilebilir.
+- Akreditasyon, ölçüm süresi/debisi ve numune muhafaza şartları için mevcut metot kartları **taslaktır**; onaylı SOP gereklidir.
+- GitHub Actions testleri kodu ve API iş akışlarını kontrol eder, kendi Linux sunucunuza otomatik kurulum yapmaz.
