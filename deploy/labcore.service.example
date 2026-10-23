@@ -1,6 +1,6 @@
 [Unit]
 Description=LABCORE - Emisyon Numune Alma El Kitabi
-After=network-online.target postgresql.service
+After=network-online.target
 Wants=network-online.target
 
 [Service]
@@ -10,15 +10,20 @@ Group=kopru
 WorkingDirectory=/opt/emisyon-el-kitabi
 Environment=NODE_ENV=production
 Environment=PORT=4100
+Environment=DATABASE_PATH=/var/lib/labcore/labcore.sqlite
 EnvironmentFile=/etc/labcore/labcore.env
-# Node yolu sunucuda farkliysa: command -v node komutuyla bulup degistirin.
+StateDirectory=labcore
+StateDirectoryMode=0700
+UMask=0077
+# Node yolu farkliysa: command -v node komutunun ciktisiyla degistirin.
 ExecStart=/usr/bin/node /opt/emisyon-el-kitabi/server/index.mjs
 Restart=on-failure
 RestartSec=5
-UMask=0077
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=full
+ProtectHome=true
+ReadWritePaths=/var/lib/labcore
 
 [Install]
 WantedBy=multi-user.target
