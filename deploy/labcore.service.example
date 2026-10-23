@@ -1,12 +1,13 @@
 [Unit]
-Description=LABCORE - Emisyon Numune Alma El Kitabi
+Description=LABCORE - Emisyon Saha El Kitabi (/rehber)
 After=network-online.target
 Wants=network-online.target
 
 [Service]
 Type=simple
-User=kopru
-Group=kopru
+# Kopru Linux kullanicisindan TAMAMEN AYRI servis hesabi
+User=labcore
+Group=labcore
 WorkingDirectory=/opt/emisyon-el-kitabi
 Environment=NODE_ENV=production
 Environment=PORT=4100
@@ -15,15 +16,17 @@ EnvironmentFile=/etc/labcore/labcore.env
 StateDirectory=labcore
 StateDirectoryMode=0700
 UMask=0077
-# Node yolu farkliysa: command -v node komutunun ciktisiyla degistirin.
+# Sunucudaki Node.js tam yolunu command -v node ile dogrulayin
 ExecStart=/usr/bin/node /opt/emisyon-el-kitabi/server/index.mjs
 Restart=on-failure
 RestartSec=5
 NoNewPrivileges=true
 PrivateTmp=true
-ProtectSystem=full
+ProtectSystem=strict
 ProtectHome=true
 ReadWritePaths=/var/lib/labcore
+# Servisin mevcut Kopru uygulama dosyalarina erişimini kes
+InaccessiblePaths=/opt/kopru
 
 [Install]
 WantedBy=multi-user.target
