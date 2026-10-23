@@ -240,5 +240,5 @@ app.use((error,req,res,next)=>{
   fail(res,500,'Sunucu hatası.');
 });
 initializeDatabase()
-  .then(()=>app.listen(port,()=>console.log('LABCORE API port '+port)))
+  .then(()=>app.listen(port,production?'127.0.0.1':'0.0.0.0',()=>console.log('LABCORE API port '+port)))
   .catch(error=>{console.error('Kurulum hatası:',error.message);process.exit(1);});
