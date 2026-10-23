@@ -46,9 +46,15 @@ Node.js 20+, npm, PostgreSQL gerekir.
 
 Gerçek şifreleri, .env dosyasını, müşteri bilgilerini veya veritabanı içeriğini GitHub'a yüklemeyin.
 
-## Yayınlama
+## Yayınlama: kendi Linux sunucumuz
+
+**Hedef ortam:** kopru Linux kullanıcısı ile çalışan, mevcut /opt/kopru Flask uygulamasından bağımsız /opt/emisyon-el-kitabi dizini ve labcore.service. PostgreSQL ayrı veritabanında; Nginx veya mevcut reverse proxy üzerinden HTTPS.
+
+**Adım adım kurulum rehberi:** docs/LINUX_KURULUM.md. **Örnek systemd servisi:** deploy/labcore.service.example. **Nginx örneği:** deploy/nginx-labcore.conf.example.
 
 **GitHub Pages tek başına bu uygulamayı çalıştıramaz.** Gerçek giriş, kullanıcı yönetimi ve saha verileri için Node sunucusu ve PostgreSQL gerekir.
+
+### Alternatif bulut barındırma (kullanılmıyor)
 
 Railway ya da benzeri bir barındırıcıda:
 1. Bu GitHub reposunu bağla.
