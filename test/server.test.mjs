@@ -21,7 +21,7 @@ test('SQLite: login, roles, methods, field records and session revocation',async
   server.stdout.on('data',d=>{logs+=d;});
   server.stderr.on('data',d=>{logs+=d;});
   const request=async(method,url,body,cookie)=>{
-    const response=await fetch(base+'/api'+url,{
+    const response=await fetch(base+'/rehber/api'+url,{
       method,headers:{...(body?{'content-type':'application/json'}:{}),...(cookie?{cookie}:{})},
       ...(body?{body:JSON.stringify(body)}:{})
     });
@@ -36,6 +36,8 @@ test('SQLite: login, roles, methods, field records and session revocation',async
       await new Promise(resolve=>setTimeout(resolve,100));
     }
     assert.ok(ready,'API did not start: '+logs);
+    assert.equal((await fetch(base+'/kopru/')).status,404,'LABCORE must not handle Köprü route');
+    assert.equal((await fetch(base+'/api/health')).status,404,'LABCORE API must live only below /rehber/api');
     const denied=await request('GET','/methods');
     assert.equal(denied.status,401);
     const logged=await request('POST','/login',{username:'admin',password:'test-strong-admin-password'});
