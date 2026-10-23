@@ -6,3 +6,15 @@ dist/
 *.log
 .DS_Store
 coverage/
+
+# SQLite verisi, journal ve yedekleri
+data/
+*.sqlite
+*.sqlite-*
+*.db
+*.db-*
+*.sqlite3
+*.sqlite3-*
+*.backup
+*.backup-*
+backups/
