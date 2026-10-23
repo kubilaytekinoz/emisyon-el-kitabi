@@ -54,18 +54,7 @@ Gerçek şifreleri, .env dosyasını, müşteri bilgilerini veya veritabanı iç
 
 **GitHub Pages tek başına bu uygulamayı çalıştıramaz.** Gerçek giriş, kullanıcı yönetimi ve saha verileri için Node sunucusu ve PostgreSQL gerekir.
 
-### Alternatif bulut barındırma (kullanılmıyor)
-
-Railway ya da benzeri bir barındırıcıda:
-1. Bu GitHub reposunu bağla.
-2. PostgreSQL veritabanı ekle ve DATABASE_URL tanımla.
-3. İlk kurulum için ADMIN_USERNAME ve ADMIN_PASSWORD ver; NODE_ENV=production ayarla.
-4. APP_ORIGIN değerini yayınlanan https adresi yap.
-5. Build komutu: npm install && npm run build.
-6. Start komutu: npm start.
-7. Admin olarak giriş yap ve personel hesaplarını panelden oluştur.
-
-HTTPS, gizli değişken yönetimi, veritabanı yedekleri ve erişim kontrolleri üretim ortamında yapılandırılmalı.
+LABCORE'u mevcut Linux sunucumuzda ayrı bir systemd servisiyle yayınlayacağız. Köprü uygulamasının koduna veya çalışma dizinine müdahale edilmeyecek. Başlamadan önce sunucunun dağıtımı, Node.js ve PostgreSQL varlığı kontrol edilmelidir.
 
 ## Teknik sınırlar
 
