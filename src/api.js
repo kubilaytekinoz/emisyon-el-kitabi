@@ -4,7 +4,8 @@ export async function api(url, options={}) {
   if(method!=='GET')request.headers={'Content-Type':'application/json',...(options.headers||{})};
   if(options.body!==undefined && typeof options.body!=='string')
     request.body=JSON.stringify(options.body);
-  const response=await fetch('/api'+url,request);
+  const base=import.meta.env.BASE_URL.replace(/\/$/,'');
+  const response=await fetch(base+'/api'+url,request);
   let data={};
   try{ data=await response.json(); }catch{}
   if(!response.ok){
