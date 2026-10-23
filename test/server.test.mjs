@@ -83,8 +83,10 @@ test('SQLite: login, roles, methods, field records and session revocation',async
     assert.equal((await request('GET','/me',null,staffCookie)).status,401);
     assert.equal((await request('GET','/me',null,adminCookie)).status,200);
   }finally{
-    server.kill('SIGTERM');
-    await new Promise(resolve=>server.once('exit',resolve));
+    if(server.exitCode===null){
+      server.kill('SIGTERM');
+      await new Promise(resolve=>server.once('exit',resolve));
+    }
     rmSync(directory,{recursive:true,force:true});
   }
 });
