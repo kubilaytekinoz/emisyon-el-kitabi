@@ -33,7 +33,7 @@ app.use(express.json({limit:'256kb'}));
 app.use(cookieParser());
 
 // Çerezli oturumlar için aynı-origin kontrolü; farklı siteye CORS açılmıyor.
-app.use('/api',(req,res,next)=>{
+app.use('/rehber/api',(req,res,next)=>{
   if(['POST','PUT','PATCH','DELETE'].includes(req.method)){
     const origin=req.get('origin');
     const host=req.get('x-forwarded-host')||req.get('host');
@@ -65,14 +65,14 @@ function admin(req,res,next){
   next();
 }
 function setCookie(res,token){
-  res.cookie(cookieName,token,{path:'/',httpOnly:true,sameSite:'lax',
+  res.cookie(cookieName,token,{path:'/rehber',httpOnly:true,sameSite:'lax',
     secure:production,maxAge:14*86400000});
 }
 
-app.get('/api/health',wrap((req,res)=>{
+app.get('/rehber/api/health',wrap((req,res)=>{
   db.prepare('SELECT 1').get();res.json({ok:true,db:'sqlite'});
 }));
-app.post('/api/login',loginLimiter,wrap(async(req,res)=>{
+app.post('/rehber/api/login',loginLimiter,wrap(async(req,res)=>{
   const username=clean(req.body?.username,32).toLowerCase();
   const password=req.body?.password;
   if(!validUsername(username)||typeof password!=='string')
@@ -89,13 +89,13 @@ app.post('/api/login',loginLimiter,wrap(async(req,res)=>{
   })();
   setCookie(res,token);res.json({user:safeUser(user)});
 }));
-app.post('/api/logout',auth,wrap((req,res)=>{
+app.post('/rehber/api/logout',auth,wrap((req,res)=>{
   db.prepare('DELETE FROM auth_sessions WHERE token_hash=?').run(hashToken(req.cookies[cookieName]));
-  res.clearCookie(cookieName,{path:'/',secure:production,httpOnly:true,sameSite:'lax'});
+  res.clearCookie(cookieName,{path:'/rehber',secure:production,httpOnly:true,sameSite:'lax'});
   res.json({ok:true});
 }));
-app.get('/api/me',auth,(req,res)=>res.json({user:safeUser(req.user)}));
-app.get('/api/overview',auth,wrap((req,res)=>{
+app.get('/rehber/api/me',auth,(req,res)=>res.json({user:safeUser(req.user)}));
+app.get('/rehber/api/overview',auth,wrap((req,res)=>{
   const methods=db.prepare('SELECT COUNT(*) AS n FROM methods').get().n;
   const users=db.prepare('SELECT COUNT(*) AS n FROM users WHERE active=1').get().n;
   const sessions=req.user.role==='admin'
@@ -103,7 +103,7 @@ app.get('/api/overview',auth,wrap((req,res)=>{
     :db.prepare('SELECT COUNT(*) AS n FROM field_sessions WHERE user_id=?').get(req.user.id).n;
   res.json({methods,users,sessions});
 }));
-app.get('/api/methods',auth,wrap((req,res)=>{
+app.get('/rehber/api/methods',auth,wrap((req,res)=>{
   const rows=db.prepare('SELECT * FROM methods ORDER BY id').all();
   res.json({methods:rows.map(methodFromDb)});
 }));
@@ -120,7 +120,7 @@ function validatedPhases(phases){
   return phases.map(p=>({id:clean(p.id,40)||uuid(),title:clean(p.title),
     items:p.items.map(item=>clean(item,700)).filter(Boolean)}));
 }
-app.post('/api/methods',auth,admin,wrap((req,res)=>{
+app.post('/rehber/api/methods',auth,admin,wrap((req,res)=>{
   const body=req.body||{};
   if(!validateMethod(body,true))return fail(res,400,'Metot kodu, başlığı veya adımları geçersiz.');
   const id=clean(body.id,40).toUpperCase();
@@ -135,7 +135,7 @@ app.post('/api/methods',auth,admin,wrap((req,res)=>{
   })();
   res.status(201).json({ok:true});
 }));
-app.put('/api/methods/:id',auth,admin,wrap((req,res)=>{
+app.put('/rehber/api/methods/:id',auth,admin,wrap((req,res)=>{
   const body=req.body||{};
   if(!validateMethod(body))return fail(res,400,'Başlık, uyarılar ve adımların biçimi geçersiz.');
   const old=db.prepare('SELECT version FROM methods WHERE id=?').get(req.params.id);
@@ -155,11 +155,11 @@ app.put('/api/methods/:id',auth,admin,wrap((req,res)=>{
   res.json({ok:true,version:nextVersion});
 }));
 
-app.get('/api/users',auth,admin,wrap((req,res)=>{
+app.get('/rehber/api/users',auth,admin,wrap((req,res)=>{
   const users=db.prepare('SELECT id,username,full_name,role,active FROM users ORDER BY username').all();
   res.json({users:users.map(safeUser)});
 }));
-app.post('/api/users',auth,admin,wrap(async(req,res)=>{
+app.post('/rehber/api/users',auth,admin,wrap(async(req,res)=>{
   const username=clean(req.body?.username,32).toLowerCase();
   const fullName=clean(req.body?.fullName,120);
   const password=req.body?.password;
@@ -175,7 +175,7 @@ app.post('/api/users',auth,admin,wrap(async(req,res)=>{
   })();
   res.status(201).json({user:{id,username,fullName,role,active:true}});
 }));
-app.patch('/api/users/:id',auth,admin,wrap(async(req,res)=>{
+app.patch('/rehber/api/users/:id',auth,admin,wrap(async(req,res)=>{
   const old=db.prepare('SELECT * FROM users WHERE id=?').get(req.params.id);
   if(!old)return fail(res,404,'Kullanıcı bulunamadı.');
   const body=req.body||{};
@@ -208,14 +208,14 @@ app.patch('/api/users/:id',auth,admin,wrap(async(req,res)=>{
   res.json({ok:true});
 }));
 
-app.get('/api/field-sessions',auth,wrap((req,res)=>{
+app.get('/rehber/api/field-sessions',auth,wrap((req,res)=>{
   const query='SELECT s.*,u.full_name AS owner_name FROM field_sessions s JOIN users u ON u.id=s.user_id ';
   const rows=req.user.role==='admin'
     ?db.prepare(query+'ORDER BY s.updated_at DESC LIMIT 100').all()
     :db.prepare(query+'WHERE s.user_id=? ORDER BY s.updated_at DESC LIMIT 100').all(req.user.id);
   res.json({sessions:rows.map(sessionFromDb)});
 }));
-app.post('/api/field-sessions',auth,wrap((req,res)=>{
+app.post('/rehber/api/field-sessions',auth,wrap((req,res)=>{
   const methodId=clean(req.body?.methodId,40);
   const facility=clean(req.body?.facility,150);
   const point=clean(req.body?.samplingPoint,150);
@@ -230,7 +230,7 @@ app.post('/api/field-sessions',auth,wrap((req,res)=>{
   })();
   res.status(201).json({id});
 }));
-app.patch('/api/field-sessions/:id',auth,wrap((req,res)=>{
+app.patch('/rehber/api/field-sessions/:id',auth,wrap((req,res)=>{
   const original=db.prepare('SELECT * FROM field_sessions WHERE id=?').get(req.params.id);
   if(!original)return fail(res,404,'Saha kaydı bulunamadı.');
   if(original.user_id!==req.user.id&&req.user.role!=='admin')
@@ -257,12 +257,13 @@ app.patch('/api/field-sessions/:id',auth,wrap((req,res)=>{
   res.json({ok:true});
 }));
 
-app.use('/api',(req,res)=>fail(res,404,'API yolu bulunamadı.'));
+app.use('/rehber/api',(req,res)=>fail(res,404,'API yolu bulunamadı.'));
 if(production){
   const dist=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../dist');
-  app.use(express.static(dist,{index:false}));
-  app.get('*',(req,res)=>res.sendFile(path.join(dist,'index.html')));
-}else app.get('/',(req,res)=>res.send('LABCORE API hazır. Panel için http://localhost:5173'));
+  app.get('/rehber',(req,res)=>res.redirect(308,'/rehber/'));
+  app.use('/rehber',express.static(dist,{index:false}));
+  app.get('/rehber/*',(req,res)=>res.sendFile(path.join(dist,'index.html')));
+}else app.get('/',(req,res)=>res.redirect(302,'/rehber/'));
 app.use((error,req,res,next)=>{
   console.error(error);
   if(error.code==='SQLITE_CONSTRAINT_UNIQUE')return fail(res,409,'Bu kayıt zaten mevcut.');
